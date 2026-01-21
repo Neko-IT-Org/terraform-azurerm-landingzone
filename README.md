@@ -18,9 +18,8 @@ module "rg" {
   }
 
   lock = {
+    kind = "CanNotDelete"
     name = "rg-lock"
-    level = "CanNotDelete"
-    notes = "Lock applied to prevent accidental deletion"
   }
 }
 ```

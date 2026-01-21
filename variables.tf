@@ -5,7 +5,7 @@ variable "name" {
   description = "Required. The name of the this resource."
 
   validation {
-    condition     = can(regex("^[a-zA-Z0-9_().-]{1,89}[a-zA-Z0-9_()-]$", var.name))
+    condition     = length(var.name) >= 1 && length(var.name) <= 90 && can(regex("^[a-zA-Z0-9_().-]+$", var.name)) && !endswith(var.name, ".")
     error_message = <<ERROR_MESSAGE
     The resource group name must meet the following requirements:
     - `Between 1 and 90 characters long.` 
@@ -58,11 +58,25 @@ Example:
 EOT
   type = list(object({
     principal_id                           = string
-    role_definition_id                     = string
+    role_definition_id                     = optional(string)
+    role_definition_name                   = optional(string)
     condition                              = optional(string)
     condition_version                      = optional(string)
     description                            = optional(string)
     delegated_managed_identity_resource_id = optional(string)
   }))
   default = []
+  validation {
+    condition = alltrue([
+      for assignment in var.role_assignments :
+      (
+        (!isnull(assignment.role_definition_id) && isnull(assignment.role_definition_name)) ||
+        (isnull(assignment.role_definition_id) && !isnull(assignment.role_definition_name))
+      )
+    ])
+
+    error_message = <<EOT
+Each role assignment must specify exactly one of `role_definition_id` or `role_definition_name`. Remove the extra attribute if both are provided, or supply the missing one.
+EOT
+  }
 }
