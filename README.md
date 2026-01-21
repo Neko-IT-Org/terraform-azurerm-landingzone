@@ -6,8 +6,8 @@ Terraform module to create and manage an Azure Resource Group with optional tags
 
 ```hcl
 module "rg" {
-  source   = "kissho-academy/resourcegroup/azurerm"
-  version  = "1.0.1"
+  source   = "Neko-IT-Org/resourcegroup/azurerm"
+  version  = "***"
 
   name     = "rg-app-prod-westeurope"
   location = "westeurope"
