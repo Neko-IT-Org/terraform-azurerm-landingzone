@@ -21,3 +21,13 @@ output "security_rule" {
   description = "The security rules applied to each NSG. Useful for auditing and validation."
   value       = azurerm_network_security_group.this.security_rule
 }
+
+output "location" {
+  description = "The Azure region of the NSG"
+  value       = azurerm_network_security_group.this.location
+}
+
+output "resource_group_name" {
+  description = "The resource group name of the NSG"
+  value       = azurerm_network_security_group.this.resource_group_name
+}

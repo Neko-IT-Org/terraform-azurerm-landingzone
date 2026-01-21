@@ -52,5 +52,20 @@ variable "security_rules" {
     destination_address_prefixes = optional(list(string))
     description                  = optional(string)
   }))
-  default = []
+  
+  validation {
+    condition = alltrue([
+      for rule in var.security_rules :
+      rule.priority >= 100 && rule.priority <= 4096
+    ])
+    error_message = "Security rule priority must be between 100 and 4096."
+  }
+
+  validation {
+    condition = alltrue([
+      for rule in var.security_rules :
+      contains(["Inbound", "Outbound"], rule.direction)
+    ])
+    error_message = "Direction must be 'Inbound' or 'Outbound'."
+  }
 }

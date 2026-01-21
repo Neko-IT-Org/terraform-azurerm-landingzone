@@ -1,25 +1,25 @@
-# terraform-azurerm-resourcegroup
+module "nsg_management" {
+  source              = "./modules/NSG"
+  name                = "nsg-mgmt-hub-weu-01"
+  location            = "westeurope"
+  resource_group_name = module.rg.name
 
-Terraform module to create and manage an Azure Resource Group with optional tags and lock.
-
-## Usage
-
-```hcl
-module "rg" {
-  source   = "kissho-academy/resourcegroup/azurerm"
-  version  = "1.0.1"
-
-  name     = "rg-app-prod-westeurope"
-  location = "westeurope"
+  security_rules = [
+    {
+      name                       = "Allow-SSH-Inbound"
+      priority                   = 100
+      direction                  = "Inbound"
+      access                     = "Allow"
+      protocol                   = "Tcp"
+      source_port_range          = "*"
+      destination_port_range     = "22"
+      source_address_prefix      = "10.0.0.0/8"
+      destination_address_prefix = "*"
+    }
+  ]
 
   tags = {
-    environment = "prod"
-    owner       = "team"
-  }
-
-  lock = {
-    kind = "CanNotDelete"
-    name = "rg-lock"
+    environment = "lab"
+    project     = "neko"
   }
 }
-```

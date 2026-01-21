@@ -43,6 +43,24 @@ variable "route" {
     next_hop_type          = string
     next_hop_in_ip_address = optional(string)
   }))
+  
+  validation {
+    condition = alltrue([
+      for r in var.route : contains(
+        ["VirtualNetworkGateway", "VnetLocal", "Internet", "VirtualAppliance", "None"],
+        r.next_hop_type
+      )
+    ])
+    error_message = "next_hop_type must be one of: VirtualNetworkGateway, VnetLocal, Internet, VirtualAppliance, or None."
+  }
+
+  validation {
+    condition = alltrue([
+      for r in var.route :
+      r.next_hop_type != "VirtualAppliance" || r.next_hop_in_ip_address != null
+    ])
+    error_message = "next_hop_in_ip_address is required when next_hop_type is VirtualAppliance."
+  }
 }
 
 ###############################################################
