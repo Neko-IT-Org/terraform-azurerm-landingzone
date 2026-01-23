@@ -131,8 +131,6 @@ output "peering_states" {
 output "infrastructure_summary" {
   description = "High-level summary of deployed infrastructure"
   value = {
-    project     = var.project_name
-    environment = var.environment
     location    = var.location
     hub_vnet = {
       name          = module.vnet_hub.name
@@ -149,8 +147,6 @@ output "infrastructure_summary" {
       address_space = "10.2.0.0/16"
       subnets       = keys(module.subnets_spoke_data.id)
     }
-    firewall_trust_ip = var.firewall_trust_ip
-    telemetry_enabled = var.enable_telemetry
   }
 }
 
@@ -167,7 +163,7 @@ output "next_steps" {
   1. Deploy Palo Alto VM-Series firewall in Hub VNet
   2. Configure firewall policies via Panorama or local UI
   3. Deploy workload resources in spoke VNets
-  4. Verify routing: Spoke -> Firewall Trust (${var.firewall_trust_ip})
+  4. Verify routing: Spoke -> Firewall Trust ()
   5. Test connectivity between spokes via firewall
   
   📊 To view all peering states:

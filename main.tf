@@ -74,8 +74,6 @@ resource "azurerm_network_interface" "untrust" {
   name                          = "${var.firewall_name}-nic-untrust"
   location                      = var.location
   resource_group_name           = var.resource_group_name
-  enable_ip_forwarding          = true
-  enable_accelerated_networking = var.enable_accelerated_networking
 
   ip_configuration {
     name                          = "ipconfig-untrust"
@@ -97,8 +95,6 @@ resource "azurerm_network_interface" "trust" {
   name                          = "${var.firewall_name}-nic-trust"
   location                      = var.location
   resource_group_name           = var.resource_group_name
-  enable_ip_forwarding          = true
-  enable_accelerated_networking = var.enable_accelerated_networking
 
   ip_configuration {
     name                          = "ipconfig-trust"
