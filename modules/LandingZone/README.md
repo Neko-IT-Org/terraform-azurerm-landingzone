@@ -1,33 +1,34 @@
-# 🏗️ Module AVL (Azure Virtual Landing Zone)
+# 🏗️ ALZ Module (Azure Landing Zone)
 
-Module Terraform orchestrateur pour déployer une **Landing Zone Azure complète** avec architecture **Hub-and-Spoke** et firewall **Palo Alto VM-Series**.
+Terraform module to deploy **Azure Landing Zone Management Group hierarchy** and **policy assignments** using the Azure Verified Module (`Azure/avm-ptn-alz/azurerm`).
 
 ---
 
-## 📋 Table des Matières
+## 📋 Table of Contents
 
-- [Vue d'ensemble](#-vue-densemble)
+- [Overview](#-overview)
 - [Architecture](#-architecture)
-- [Fonctionnalités](#-fonctionnalités)
-- [Prérequis](#-prérequis)
-- [Utilisation](#-utilisation)
+- [Features](#-features)
+- [Prerequisites](#-prerequisites)
+- [Usage](#-usage)
+- [Library Structure](#-library-structure)
 - [Variables](#-variables)
 - [Outputs](#-outputs)
-- [Exemples](#-exemples)
+- [Examples](#-examples)
+- [Troubleshooting](#-troubleshooting)
 
 ---
 
-## 🎯 Vue d'ensemble
+## 🎯 Overview
 
-Ce module déploie une **Landing Zone Azure production-ready** incluant:
+This module deploys the **Azure Landing Zone** foundation including:
 
-- **Hub VNet** avec 3 subnets (Management, Untrust, Trust)
-- **Spoke VNets** pour Applications et Données
-- **NSGs** avec règles de sécurité personnalisables
-- **Route Tables** pour forcer le trafic via le firewall
-- **VNet Peerings** bidirectionnels automatiques
-- **Palo Alto VM-Series** (optionnel)
-- **Télémétrie** vers Log Analytics
+- **Management Group Hierarchy** - Organized structure for governance
+- **Policy Definitions** - Custom and built-in policies
+- **Policy Assignments** - Automated compliance enforcement
+- **Role Definitions** - Custom RBAC roles
+- **Subscription Placement** - Automatic subscription organization
+- **AMBA Integration** - Azure Monitor Baseline Alerts
 
 ---
 
@@ -35,505 +36,370 @@ Ce module déploie une **Landing Zone Azure production-ready** incluant:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                  HUB VNET (10.0.0.0/16)                     │
-│  ┌────────────┐  ┌──────────┐  ┌──────────┐                │
-│  │ Management │  │ Untrust  │  │  Trust   │                │
-│  │ 10.0.1.0/24│  │10.0.2.0/24│ │10.0.3.0/24│               │
-│  │    NSG     │  │   NSG    │  │   NSG    │                │
-│  └─────┬──────┘  └────┬─────┘  └────┬─────┘                │
-│        │              │              │                       │
-│        └──────┬───────┴──────┬───────┘                      │
-│               │              │                               │
-│      ┌────────▼──────────────▼────────┐                    │
-│      │  Palo Alto VM-Series Firewall  │                    │
-│      │  • 3 NICs (Mgmt/Untrust/Trust) │                    │
-│      │  • Bootstrap Support            │                    │
-│      │  • HA Ready                     │                    │
-│      └─────────────────────────────────┘                    │
-└──────────────────────┬──────────────────────────────────────┘
-                       │ VNet Peering (Bidirectionnel)
-         ┌─────────────┼─────────────┐
-         │             │             │
-  ┌──────▼───────┐  ┌─▼──────────┐  │
-  │ SPOKE APP    │  │ SPOKE DATA │  │
-  │ 10.1.0.0/16  │  │10.2.0.0/16 │  │
-  │ • Web Subnet │  │ • DB Subnet│  │
-  │ • App Subnet │  │            │  │
-  │ • UDR → FW   │  │ • UDR → FW │  │
-  └──────────────┘  └────────────┘  │
+│                    Tenant Root Group                         │
+└─────────────────────────┬───────────────────────────────────┘
+                          │
+┌─────────────────────────▼───────────────────────────────────┐
+│              Landing Zone Root (mg-lzr)                      │
+│              • Root policies                                 │
+│              • AMBA notifications                            │
+└───────────┬─────────────────────────────────┬───────────────┘
+            │                                 │
+┌───────────▼───────────┐       ┌─────────────▼─────────────┐
+│   Landing Zones       │       │      Platform             │
+│      (mg-lz)          │       │      (mg-plat)            │
+│  • Landing zone       │       │  • Platform policies      │
+│    policies           │       │  • DDoS protection        │
+└─────┬─────────────────┘       └─────────┬─────────────────┘
+      │                                   │
+      ├── Corp (mg-corp)                  ├── Management (mg-mgmt)
+      │   • Corp subscriptions            │   • Log Analytics
+      │                                   │   • Automation
+      ├── Online (mg-online)              │
+      │   • Public-facing apps            ├── Connectivity (mg-con)
+      │                                   │   • Hub VNet
+      ├── Sandbox (mg-sandbox)            │   • Firewall
+      │   • Dev/Test                      │   • VPN Gateway
+      │                                   │
+      └── Decommissioned                  ├── Identity (mg-idt)
+          (mg-decommissioned)             │   • AD DS
+                                          │   • Identity services
+                                          │
+                                          └── Security (mg-sec)
+                                              • Security tools
+                                              • SIEM
 ```
 
-### Flux de Trafic
+---
 
-- **North-South**: Internet ↔ Firewall (Untrust) ↔ Spokes
-- **East-West**: Spoke ↔ Firewall (Trust) ↔ Spoke
-- **Management**: Subnet dédié avec NSG strict
+## ✨ Features
+
+- ✅ **Azure Verified Module** - Uses official `Azure/avm-ptn-alz/azurerm`
+- ✅ **Custom Library** - Override archetypes and policies
+- ✅ **AMBA Integration** - Azure Monitor Baseline Alerts included
+- ✅ **Flexible Subscription Placement** - Platform + additional subscriptions
+- ✅ **Policy Customization** - Modify parameters and enforcement
+- ✅ **Retry Logic** - Handle transient Azure API errors
 
 ---
 
-## ✨ Fonctionnalités
+## 📦 Prerequisites
 
-### Infrastructure
+### Tools
 
-- ✅ **Hub-and-Spoke complet** - Architecture centralisée
-- ✅ **Multi-Spoke** - App, Data, Shared Services
-- ✅ **Modulaire** - Activation/désactivation par feature flags
-- ✅ **Multi-environnement** - Dev, Staging, Production
+| Tool       | Version   | Description              |
+| ---------- | --------- | ------------------------ |
+| Terraform  | ≥ 1.9.0   | Infrastructure as Code   |
+| Azure CLI  | ≥ 2.50    | Azure authentication     |
 
-### Sécurité
+### Permissions
 
-- 🔒 **NSGs granulaires** - Règles personnalisables par subnet
-- 🔒 **UDRs automatiques** - Force le trafic via le firewall
-- 🔒 **Palo Alto VM-Series** - Firewall de niveau entreprise
-- 🔒 **Locks conditionnels** - Protection automatique en prod
-- 🔒 **SSH Key Auth** - Aucune authentification par mot de passe
+- **Global Administrator** or **Owner** at tenant root
+- For subscription placement: **Owner** on target subscriptions
 
-### Observabilité
-
-- 📊 **Log Analytics** - Intégration complète
-- 📊 **Diagnostic Settings** - Sur toutes les ressources
-- 📊 **Tagging automatique** - CreatedOn, Project, Environment
-- 📊 **Outputs détaillés** - Résumé complet de l'infrastructure
-
----
-
-## 📦 Prérequis
-
-### Outils
-
-| Outil      | Version | Description                |
-| ---------- | ------- | -------------------------- |
-| Terraform  | ≥ 1.5.0 | Infrastructure provisioning|
-| Azure CLI  | ≥ 2.50  | Authentification Azure     |
-
-### Azure
-
-- Subscription active
-- Permissions Contributor
-- Service Principal (pour CI/CD)
-- Acceptation des termes Marketplace Palo Alto
+### Authentication
 
 ```bash
-az vm image terms accept \
-  --publisher paloaltonetworks \
-  --offer vmseries-flex \
-  --plan byol
+# Login to Azure
+az login
+
+# Set subscription (for state management)
+az account set --subscription "Management-Subscription"
 ```
 
 ---
 
-## 🚀 Utilisation
+## 🚀 Usage
 
-### Utilisation Basique
+### Basic Usage
 
 ```hcl
-module "landing_zone" {
-  source = "./modules/LandingZone"
+module "alz" {
+  source = "./modules/ALZ"
 
-  # Configuration de base
-  project_name = "neko"
-  environment  = "prod"
-  location     = "westeurope"
+  # Required
+  location = "westeurope"
 
-  # Configuration réseau
-  hub_vnet_address_space        = "10.0.0.0/16"
-  spoke_app_vnet_address_space  = "10.1.0.0/16"
-  spoke_data_vnet_address_space = "10.2.0.0/16"
+  # Architecture
+  architecture_name = "prod"
 
-  # Firewall (optionnel)
-  deploy_firewall            = true
-  palo_alto_admin_ssh_key    = var.ssh_public_key
-  firewall_trust_private_ip  = "10.0.3.4"
+  # Platform subscriptions
+  management_subscription_id   = "00000000-0000-0000-0000-000000000001"
+  connectivity_subscription_id = "00000000-0000-0000-0000-000000000002"
+  identity_subscription_id     = "00000000-0000-0000-0000-000000000003"
+}
+```
 
-  # Télémétrie
-  enable_telemetry           = true
-  log_analytics_workspace_id = var.workspace_id
+### Complete Example
 
-  # Tags
+```hcl
+module "alz" {
+  source = "./modules/ALZ"
+
+  # Required
+  location = "westeurope"
+
+  # Architecture  
+  architecture_name = "prod"
+
+  # Platform subscriptions
+  management_subscription_id   = var.management_subscription_id
+  connectivity_subscription_id = var.connectivity_subscription_id
+  identity_subscription_id     = var.identity_subscription_id
+  security_subscription_id     = var.security_subscription_id
+
+  # Additional subscriptions
+  additional_subscription_placement = {
+    sub-apimanager = {
+      subscription_id       = var.apimanager_subscription_id
+      management_group_name = "mg-corp"
+    }
+  }
+
+  # Policy default values
+  policy_default_values = {
+    amba_alz_management_subscription_id            = var.management_subscription_id
+    amba_alz_resource_group_location               = "westeurope"
+    amba_alz_resource_group_name                   = "rg-amba-prod-weu"
+    amba_alz_byo_user_assigned_managed_identity_id = module.management.user_assigned_identity_id
+    amba_alz_action_group_email                    = jsonencode({ value = ["platform@company.com"] })
+    log_analytics_workspace_id                     = module.management.log_analytics_workspace_id
+    private_dns_zone_subscription_id               = var.connectivity_subscription_id
+    private_dns_zone_resource_group_name           = "rg-con-prod-weu-private-dns"
+  }
+
+  # Policy modifications
+  policy_assignments_to_modify = {
+    mg-lzr = {
+      policy_assignments = {
+        Deploy-AMBA-Notification = {
+          parameters = {
+            ALZAlertSeverity = jsonencode({ value = var.alert_severity })
+          }
+        }
+        Deploy-MDFC-Config-H224 = {
+          parameters = {
+            emailSecurityContact = jsonencode({ value = var.security_email })
+          }
+        }
+      }
+    }
+    mg-plat = {
+      policy_assignments = {
+        Enable-DDoS-VNET = {
+          parameters = {
+            ddosPlan = jsonencode({ value = module.ddos.resource_id })
+          }
+        }
+      }
+    }
+  }
+
   tags = {
-    CostCenter = "IT-Infra"
-    Owner      = "Platform-Team"
+    Environment = "Production"
+    Project     = "Azure-Landing-Zone"
   }
 }
 ```
 
-### Avec Shared Services
+---
 
-```hcl
-module "landing_zone_full" {
-  source = "./modules/LandingZone"
+## 📁 Library Structure
 
-  project_name = "mycompany"
-  environment  = "prod"
-  location     = "westeurope"
+The `lib/` folder contains custom configurations:
 
-  # Activer le Spoke Shared Services
-  deploy_shared_services = true
-  spoke_shared_vnet_address_space = "10.3.0.0/16"
+```
+lib/
+├── alz_library_metadata.json           # Library metadata & dependencies
+├── architecture_definitions/
+│   └── prod.alz_architecture_definition.json   # MG hierarchy definition
+└── archetype_overrides/
+    ├── landing_zones_override.alz_archetype_override.yaml
+    ├── platform_override.alz_archetype_override.yaml
+    └── connectivity_override.alz_archetype_override.yaml
+```
 
-  # Autres configurations...
-  deploy_firewall = true
-  enable_telemetry = true
+### Archetype Overrides
 
-  tags = {
-    BusinessUnit = "Infrastructure"
-    Compliance   = "ISO27001"
-  }
-}
+Modify default ALZ archetypes:
+
+**landing_zones_override.yaml** - Removes policies from Landing Zones:
+```yaml
+name: "landing_zones_override"
+base_archetype: "landing_zones"
+policy_assignments_to_remove:
+  - "Deny-Priv-Esc-AKS"
+  - "Enable-DDoS-VNET"
+```
+
+**platform_override.yaml** - Adds DDoS at Platform level:
+```yaml
+name: "platform_override"
+base_archetype: "platform"
+policy_assignments_to_add: 
+  - "Enable-DDoS-VNET"
+```
+
+**connectivity_override.yaml** - Removes DDoS from Connectivity:
+```yaml
+name: "connectivity_override"
+base_archetype: "connectivity"
+policy_assignments_to_remove:
+  - "Enable-DDoS-VNET"
 ```
 
 ---
 
 ## 📝 Variables
 
-### Variables Essentielles
+### Required Variables
 
-| Nom                           | Type     | Default        | Description                    |
-| ----------------------------- | -------- | -------------- | ------------------------------ |
-| `project_name`                | `string` | `"neko"`       | Nom du projet                  |
-| `environment`                 | `string` | **REQUIRED**   | dev/staging/prod               |
-| `location`                    | `string` | `"westeurope"` | Région Azure                   |
-| `hub_vnet_address_space`      | `string` | `"10.0.0.0/16"`| CIDR du Hub                    |
-| `spoke_app_vnet_address_space`| `string` | `"10.1.0.0/16"`| CIDR Spoke App                 |
-| `spoke_data_vnet_address_space`|`string` | `"10.2.0.0/16"`| CIDR Spoke Data                |
+| Name       | Type     | Description           |
+| ---------- | -------- | --------------------- |
+| `location` | `string` | Primary Azure region  |
 
-### Variables Firewall
+### Architecture Variables
 
-| Nom                              | Type     | Default           | Description               |
-| -------------------------------- | -------- | ----------------- | ------------------------- |
-| `deploy_firewall`                | `bool`   | `false`           | Déployer Palo Alto        |
-| `palo_alto_vm_size`              | `string` | `"Standard_D3_v2"`| Taille VM                 |
-| `palo_alto_sku`                  | `string` | `"byol"`          | SKU (byol/bundle1/bundle2)|
-| `palo_alto_admin_ssh_key`        | `string` | `null`            | Clé SSH publique          |
-| `firewall_trust_private_ip`      | `string` | `"10.0.3.4"`      | IP Trust (next hop)       |
-| `bootstrap_storage_account_name` | `string` | `null`            | Storage pour bootstrap    |
+| Name                 | Type     | Default  | Description                    |
+| -------------------- | -------- | -------- | ------------------------------ |
+| `architecture_name`  | `string` | `"prod"` | Architecture definition name   |
+| `parent_resource_id` | `string` | `null`   | Parent MG (default: tenant)    |
 
-### Variables Télémétrie
+### Subscription Variables
 
-| Nom                           | Type     | Default | Description               |
-| ----------------------------- | -------- | ------- | ------------------------- |
-| `enable_telemetry`            | `bool`   | `true`  | Activer diagnostic        |
-| `log_analytics_workspace_id`  | `string` | `null`  | ID Workspace Log Analytics|
+| Name                                | Type          | Default | Description                |
+| ----------------------------------- | ------------- | ------- | -------------------------- |
+| `management_subscription_id`        | `string`      | `null`  | Management subscription    |
+| `connectivity_subscription_id`      | `string`      | `null`  | Connectivity subscription  |
+| `identity_subscription_id`          | `string`      | `null`  | Identity subscription      |
+| `security_subscription_id`          | `string`      | `null`  | Security subscription      |
+| `additional_subscription_placement` | `map(object)` | `{}`    | Additional subscriptions   |
 
-### Feature Flags
+### Policy Variables
 
-| Nom                      | Type   | Default | Description                  |
-| ------------------------ | ------ | ------- | ---------------------------- |
-| `deploy_shared_services` | `bool` | `false` | Déployer Spoke Shared        |
-| `deploy_vpn_gateway`     | `bool` | `false` | Déployer VPN Gateway         |
-| `enable_ddos_protection` | `bool` | `false` | Activer DDoS Protection      |
+| Name                           | Type          | Default | Description              |
+| ------------------------------ | ------------- | ------- | ------------------------ |
+| `policy_default_values`        | `map(string)` | `{}`    | Default policy values    |
+| `policy_assignments_to_modify` | `map(object)` | `{}`    | Policy modifications     |
 
 ---
 
 ## 📤 Outputs
 
-### Outputs Principaux
+### Management Groups
 
 ```hcl
-# Resource Groups
-output "resource_groups" { ... }
-
-# Virtual Networks
-output "vnets" { ... }
-
-# Subnets par VNet
-output "subnets" { ... }
-
-# NSGs
-output "nsgs" { ... }
-
-# Route Tables
-output "route_tables" { ... }
-
-# Peerings
-output "peerings" { ... }
-
-# Firewall (si déployé)
-output "firewall" { ... }
-
-# Résumé complet
-output "landing_zone_summary" { ... }
-
-# Prochaines étapes
-output "next_steps" { ... }
+output "management_group_resource_ids"    # All MG resource IDs
+output "root_management_group_id"         # mg-lzr
+output "landing_zones_management_group_id" # mg-lz
+output "platform_management_group_id"      # mg-plat
+output "management_management_group_id"    # mg-mgmt
+output "connectivity_management_group_id"  # mg-con
+output "identity_management_group_id"      # mg-idt
+output "security_management_group_id"      # mg-sec
+output "corp_management_group_id"          # mg-corp
+output "online_management_group_id"        # mg-online
 ```
 
----
-
-## 📚 Exemples
-
-### Exemple 1: Landing Zone Dev Simple
+### Policies
 
 ```hcl
-module "lz_dev" {
-  source = "./modules/LandingZone"
-
-  project_name = "acme"
-  environment  = "dev"
-  location     = "westeurope"
-
-  # Pas de firewall en dev
-  deploy_firewall = false
-
-  # Télémétrie désactivée en dev
-  enable_telemetry = false
-
-  tags = {
-    Environment = "Development"
-    Owner       = "DevTeam"
-  }
-}
+output "policy_assignment_resource_ids"
+output "policy_assignment_identity_ids"
+output "policy_definition_resource_ids"
+output "policy_set_definition_resource_ids"
 ```
 
-### Exemple 2: Landing Zone Production Complète
+### Summary
 
 ```hcl
-module "lz_prod" {
-  source = "./modules/LandingZone"
-
-  project_name = "acme"
-  environment  = "prod"
-  location     = "westeurope"
-
-  # Déploiement complet
-  deploy_firewall        = true
-  deploy_shared_services = true
-
-  # Firewall configuration
-  palo_alto_vm_size       = "Standard_D4_v2"
-  palo_alto_admin_ssh_key = file("~/.ssh/palo_key.pub")
-  
-  # Bootstrap
-  bootstrap_storage_account_name = "stpalofwbootstrapprod"
-  bootstrap_storage_access_key   = data.azurerm_key_vault_secret.bootstrap_key.value
-  bootstrap_share_name           = "bootstrap"
-
-  # Télémétrie
-  enable_telemetry           = true
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
-
-  # Sécurité
-  enable_ddos_protection = true
-
-  # Subnets personnalisés
-  spoke_app_subnets = {
-    web = {
-      address_prefix = "10.1.1.0/24"
-      service_endpoints = ["Microsoft.Storage", "Microsoft.KeyVault"]
-      nsg_rules = [
-        {
-          name                       = "Allow-HTTPS"
-          priority                   = 100
-          direction                  = "Inbound"
-          access                     = "Allow"
-          protocol                   = "Tcp"
-          source_port_range          = "*"
-          destination_port_range     = "443"
-          source_address_prefix      = "Internet"
-          destination_address_prefix = "*"
-          description                = "Allow HTTPS from Internet"
-        }
-      ]
-    }
-    app = {
-      address_prefix = "10.1.2.0/24"
-      service_endpoints = ["Microsoft.Sql"]
-      nsg_rules = [
-        {
-          name                       = "Allow-From-Web"
-          priority                   = 100
-          direction                  = "Inbound"
-          access                     = "Allow"
-          protocol                   = "Tcp"
-          source_port_range          = "*"
-          destination_port_range     = "8080"
-          source_address_prefix      = "10.1.1.0/24"
-          destination_address_prefix = "*"
-          description                = "Allow from web tier"
-        }
-      ]
-    }
-  }
-
-  tags = {
-    Environment  = "Production"
-    CostCenter   = "IT-Infrastructure"
-    Compliance   = "ISO27001"
-    Criticality  = "High"
-  }
-}
-```
-
-### Exemple 3: Multi-Région avec DR
-
-```hcl
-# Région Principale
-module "lz_primary" {
-  source = "./modules/LandingZone"
-
-  project_name = "acme"
-  environment  = "prod"
-  location     = "westeurope"
-
-  hub_vnet_address_space        = "10.0.0.0/16"
-  spoke_app_vnet_address_space  = "10.1.0.0/16"
-  spoke_data_vnet_address_space = "10.2.0.0/16"
-
-  deploy_firewall = true
-  # ... autres configs
-}
-
-# Région DR
-module "lz_dr" {
-  source = "./modules/LandingZone"
-
-  project_name = "acme"
-  environment  = "prod"
-  location     = "northeurope"
-
-  hub_vnet_address_space        = "10.10.0.0/16"
-  spoke_app_vnet_address_space  = "10.11.0.0/16"
-  spoke_data_vnet_address_space = "10.12.0.0/16"
-
-  deploy_firewall = true
-  # ... autres configs
-}
-
-# Peering Global entre régions
-module "global_peering" {
-  source = "./modules/VNetPeering"
-
-  peerings = [
-    {
-      name                        = "peer-weu-to-neu"
-      source_virtual_network_name = module.lz_primary.vnets.hub.name
-      source_resource_group_name  = module.lz_primary.resource_groups.hub.name
-      source_virtual_network_id   = module.lz_primary.vnets.hub.id
-      remote_virtual_network_id   = module.lz_dr.vnets.hub.id
-      remote_virtual_network_name = module.lz_dr.vnets.hub.name
-      remote_resource_group_name  = module.lz_dr.resource_groups.hub.name
-
-      allow_forwarded_traffic = true
-      create_reverse_peering  = true
-    }
-  ]
+output "alz_summary" {
+  # architecture_name
+  # location
+  # management_groups.count
+  # subscriptions_placed.count
+  # policies.assignments_count
 }
 ```
 
 ---
 
-## 🔧 Personnalisation
+## 📚 Examples
 
-### NSG Rules Personnalisées
-
-Les règles NSG peuvent être complètement personnalisées via les variables `spoke_app_subnets` et `spoke_data_subnets`:
+### Example 1: Minimal Deployment
 
 ```hcl
-spoke_app_subnets = {
-  frontend = {
-    address_prefix = "10.1.1.0/24"
-    nsg_rules = [
-      # Règle HTTP
-      {
-        name                       = "Allow-HTTP"
-        priority                   = 100
-        direction                  = "Inbound"
-        access                     = "Allow"
-        protocol                   = "Tcp"
-        source_port_range          = "*"
-        destination_port_range     = "80"
-        source_address_prefix      = "Internet"
-        destination_address_prefix = "*"
-        description                = "Allow HTTP"
-      },
-      # Règle HTTPS
-      {
-        name                       = "Allow-HTTPS"
-        priority                   = 110
-        direction                  = "Inbound"
-        access                     = "Allow"
-        protocol                   = "Tcp"
-        source_port_range          = "*"
-        destination_port_range     = "443"
-        source_address_prefix      = "Internet"
-        destination_address_prefix = "*"
-        description                = "Allow HTTPS"
-      },
-      # Deny All
-      {
-        name                       = "Deny-All"
-        priority                   = 4096
-        direction                  = "Inbound"
-        access                     = "Deny"
-        protocol                   = "*"
-        source_port_range          = "*"
-        destination_port_range     = "*"
-        source_address_prefix      = "*"
-        destination_address_prefix = "*"
-        description                = "Deny all other traffic"
-      }
-    ]
-  }
+module "alz" {
+  source = "./modules/ALZ"
+
+  location          = "westeurope"
+  architecture_name = "prod"
 }
 ```
 
----
+### Example 2: With AMBA Integration
 
-## 📊 Coûts Estimés
+```hcl
+module "alz" {
+  source = "./modules/ALZ"
 
-### Région: West Europe (estimations mensuelles)
+  location = "westeurope"
 
-| Ressource                    | Quantité | Coût/Mois (USD) |
-| ---------------------------- | -------- | --------------- |
-| Palo Alto VM (Standard_D3_v2)| 1        | ~$180           |
-| Public IPs (Standard)        | 2        | ~$7             |
-| VNet Peering (1TB)           | 2        | ~$20            |
-| Log Analytics (5GB)          | 1        | ~$10            |
-| **TOTAL**                    |          | **~$217**       |
+  management_subscription_id   = var.management_sub
+  connectivity_subscription_id = var.connectivity_sub
 
-*Sans Palo Alto: ~$37/mois*
-
----
-
-## ✅ Best Practices
-
-1. **Utiliser des workspaces** - Séparer les environnements
-2. **Activer la télémétrie** - Toujours en production
-3. **Locks automatiques** - Protection en prod (déjà implémenté)
-4. **Bootstrap le firewall** - Configuration automatisée
-5. **Nommage cohérent** - Via project_name et environment
+  policy_default_values = {
+    amba_alz_management_subscription_id = var.management_sub
+    amba_alz_resource_group_name        = "rg-amba-prod"
+    amba_alz_action_group_email         = jsonencode({ value = ["alerts@company.com"] })
+    log_analytics_workspace_id          = azurerm_log_analytics_workspace.main.id
+  }
+}
+```
 
 ---
 
 ## 🐛 Troubleshooting
 
-### Le firewall ne démarre pas
+### "Management group not found"
 
+Delete the ALZ provider cache:
 ```bash
-# Vérifier les logs de diagnostic
-az vm boot-diagnostics get-boot-log \
-  --name vm-neko-paloalto-prod-weu-01 \
-  --resource-group rg-neko-hub-prod-weu-01
+rm -rf .alzlib/
+terraform init
 ```
 
-### Peering en état "Initiated"
+### "Policy definition not found"
 
-Les peerings sont créés automatiquement dans les deux sens via `create_reverse_peering = true`. Si un peering reste en "Initiated", vérifier les permissions.
+Increase retry configuration:
+```hcl
+retries = {
+  policy_assignments = {
+    interval_seconds     = 30
+    max_interval_seconds = 120
+  }
+}
+```
 
-### Impossible de SSH vers le firewall
+### "AuthorizationFailed"
 
-Vérifier que votre IP est autorisée dans les NSG rules du subnet Management.
+Ensure you have Owner/Global Administrator permissions at tenant root.
 
 ---
 
-## 📄 Licence
+## ⚠️ Important Notes
+
+1. **`.alzlib/` directory** - Auto-generated cache, add to `.gitignore`
+2. **Policy parameters** - Use `jsonencode({ value = "..." })` format
+3. **Library order** - Later libraries override earlier ones
+4. **Subscription placement** - Subscriptions must exist before placement
+
+---
+
+## 📄 License
 
 MIT License
 
-## 👥 Auteurs
+## 👥 Authors
 
 **Neko-IT-Org**
-
----
-
-**⭐ Si ce module vous aide, donnez-lui une star!**

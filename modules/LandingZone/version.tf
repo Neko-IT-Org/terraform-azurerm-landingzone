@@ -1,18 +1,22 @@
 ###############################################################
 # TERRAFORM BLOCK
-# Description: Specifies required Terraform and provider versions
+# Description: Required Terraform and provider versions for ALZ
 ###############################################################
 terraform {
-  required_version = ">= 1.5.0"
+  required_version = ">= 1.9.0"
 
   required_providers {
+    alz = {
+      source  = "azure/alz"
+      version = "~> 0.17"
+    }
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = ">= 3.70.0"
+      version = ">= 4.0.0"
     }
-    time = {
-      source  = "hashicorp/time"
-      version = ">= 0.9.0"
+    azapi = {
+      source  = "azure/azapi"
+      version = "~> 2.0"
     }
   }
 }
